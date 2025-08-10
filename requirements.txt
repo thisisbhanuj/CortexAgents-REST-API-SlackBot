@@ -1,0 +1,8 @@
+slack-bolt
+python-dotenv
+snowflake
+snowflake-snowpark-python
+requests
+pandas
+numpy
+matplotlib
