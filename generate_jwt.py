@@ -1,5 +1,7 @@
 # To run this on the command line, enter:
 # python3 generate_jwt.py --account=<account_identifier> --user=<username> --private_key_file_path=<path_to_private_key_file>
+import os
+import sys
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.hazmat.primitives.serialization import PublicFormat
@@ -10,7 +12,10 @@ import base64
 from getpass import getpass
 import hashlib
 import logging
-import sys
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 # This class relies on the PyJWT module (https://pypi.org/project/PyJWT/).
 import jwt
@@ -70,21 +75,23 @@ class JWTGenerator(object):
         self.renew_time = datetime.now(timezone.utc)
         self.token = None
 
-        # Load the private key from the specified file.
+        # Load the private key from the specified file
         with open(self.private_key_file_path, 'rb') as pem_in:
             pemlines = pem_in.read()
             try:
-                # Try to access the private key without a passphrase.
+                # First, try to load without a passphrase
                 self.private_key = load_pem_private_key(pemlines, None, default_backend())
-            except TypeError as e:
-                # If that fails, provide the passphrase returned from get_private_key_passphrase().
+            except TypeError:
+                # If encrypted, try to load passphrase from environment variable
+                passphrase = os.getenv("RSA_PRIVATE_KEY_PASSPHRASE")
+                if not passphrase:
+                    raise ValueError("Private key is encrypted. Set RSA_PRIVATE_KEY_PASSPHRASE in environment.")
                 try:
-                    passphrase = get_private_key_passphrase().encode()
-                    self.private_key = load_pem_private_key(pemlines, passphrase, default_backend())
+                    self.private_key = load_pem_private_key(pemlines, passphrase.encode(), default_backend())
                 except ValueError:
-                    raise ValueError("Private key is encrypted and provided password is incorrect.")
+                    raise ValueError("Private key is encrypted and provided passphrase is incorrect.")
             except ValueError as e:
-                # Raised for unsupported or malformed keys
+                # Key format not supported or malformed
                 raise ValueError(f"Invalid private key format: {e}")
 
     def prepare_account_name_for_jwt(self, raw_account: Text) -> Text:

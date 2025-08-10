@@ -27,7 +27,6 @@ jwt_token = jwt.get_token()
 payload = {
     "model": os.getenv("MODEL"),
     "response_instruction": "You will always maintain a friendly tone and provide concise response.",
-    "experimental": {},
     "tools": [
         {
             "tool_spec": {
