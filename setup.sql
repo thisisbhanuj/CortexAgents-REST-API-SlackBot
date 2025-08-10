@@ -1,11 +1,6 @@
--- Run the following statements to create a database, schema, and a table with data loaded from AWS S3.
-
-CREATE DATABASE IF NOT EXISTS DASH_DB;
+USE DATABASE SEMANTIC_DATABASE;
 CREATE SCHEMA IF NOT EXISTS DASH_SCHEMA;
-CREATE WAREHOUSE IF NOT EXISTS DASH_S WAREHOUSE_SIZE=SMALL;
-
-USE DASH_DB.DASH_SCHEMA;
-USE WAREHOUSE DASH_S;
+USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
   
 create or replace file format csvformat  
   skip_header = 1  

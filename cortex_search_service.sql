@@ -1,28 +1,43 @@
-USE DASH_DB.DASH_SCHEMA;
-USE WAREHOUSE DASH_S;
+USE DATABASE SEMANTIC_DATABASE;
+CREATE SCHEMA IF NOT EXISTS DASH_SCHEMA;
+USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
 
-create or replace table parse_pdfs as 
-select relative_path, SNOWFLAKE.CORTEX.PARSE_DOCUMENT(@DASH_DB.DASH_SCHEMA.DASH_PDFS,relative_path,{'mode':'LAYOUT'}) as data
-    from directory(@DASH_DB.DASH_SCHEMA.DASH_PDFS);
+create or replace table PARSE_PDFS as 
+    select 
+        relative_path, 
+        SNOWFLAKE.CORTEX.PARSE_DOCUMENT(@SEMANTIC_DATABASE.DASH_SCHEMA.DASH_PDFS, relative_path, {'mode':'LAYOUT'}) as data
+    from 
+        directory(@SEMANTIC_DATABASE.DASH_SCHEMA.DASH_PDFS);
 
-create or replace table parsed_pdfs as (
+create or replace table PARSED_PDFS as (
     with tmp_parsed as (select
         relative_path,
         SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER(TO_VARIANT(data):content, 'MARKDOWN', 1800, 300) AS chunks
-    from parse_pdfs where TO_VARIANT(data):content is not null)
+    from PARSE_PDFS where TO_VARIANT(data):content is not null)
     select
         TO_VARCHAR(c.value) as PAGE_CONTENT,
         REGEXP_REPLACE(relative_path, '\\.pdf$', '') as TITLE,
-        'DASH_DB.DASH_SCHEMA.DASH_PDFS' as INPUT_STAGE,
+        'SEMANTIC_DATABASE.DASH_SCHEMA.DASH_PDFS' as INPUT_STAGE,
         RELATIVE_PATH as RELATIVE_PATH
     from tmp_parsed p, lateral FLATTEN(INPUT => p.chunks) c
 );
 
-create or replace CORTEX SEARCH SERVICE DASH_DB.DASH_SCHEMA.VEHICLES_INFO
+create or replace CORTEX SEARCH SERVICE SEMANTIC_DATABASE.DASH_SCHEMA.VEHICLES_INFO
 ON PAGE_CONTENT
-WAREHOUSE = DASH_S
+WAREHOUSE = SNOWFLAKE_LEARNING_WH
 TARGET_LAG = '1 hour'
 AS (
     SELECT '' AS PAGE_URL, PAGE_CONTENT, TITLE, RELATIVE_PATH
-    FROM parsed_pdfs
+    FROM PARSED_PDFS
 );
+
+SHOW USERS;
+GRANT MODIFY PROGRAMMATIC AUTHENTICATION METHODS ON USER BHANUJ TO ROLE SNOWFLAKE_LEARNING_ROLE;
+
+ALTER USER BHANUJ SET RSA_PUBLIC_KEY='';
+
+DESC USER BHANUJ
+  ->> SELECT SUBSTR(
+        (SELECT "value" FROM $1
+           WHERE "property" = 'RSA_PUBLIC_KEY_FP'),
+        LEN('SHA256:') + 1) AS key;
