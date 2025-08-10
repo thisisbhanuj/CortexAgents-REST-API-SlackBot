@@ -28,17 +28,6 @@ payload = {
     "model": os.getenv("MODEL"),
     "response_instruction": "You will always maintain a friendly tone and provide concise response.",
     "experimental": {},
-    "messages": [
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "text",
-                    "text": "Can you show me a breakdown of customer support tickets by service type cellular vs business internet?"
-                }
-            ]
-        }
-    ],
     "tools": [
         {
             "tool_spec": {
@@ -63,7 +52,21 @@ payload = {
         "supply_chain": {
             "semantic_model_file": os.getenv("SEMANTIC_MODEL")
         }
-    }
+    },
+    "tool_choice": {
+        "type": "auto"
+    },
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Can you show me a breakdown of customer support tickets by service type cellular vs business internet?"
+                }
+            ]
+        }
+    ]
 }
 
 # Send the POST request
@@ -87,7 +90,7 @@ try:
         data=json.dumps(payload)
     )
     response.raise_for_status()
-    print("✅ Cortex Agents response:\n\n", response.text)
+    print("✅ Cortex Agents Response:\n\n", response.text)
 
 except requests.exceptions.RequestException as e:
     print("❌ Curl Error:", str(e))
