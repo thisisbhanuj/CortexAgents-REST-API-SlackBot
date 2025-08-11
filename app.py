@@ -65,7 +65,7 @@ Were polished and ready, the hype never delayed.
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": f":snowflake: Let's BUILD!",
+                    "text": ":snowflake: Let's BUILD!",
                 }
             },
         ]                

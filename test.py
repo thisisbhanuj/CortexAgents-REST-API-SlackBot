@@ -68,6 +68,9 @@ payload = {
     ]
 }
 
+# Optional: Payload to confirm structure
+print("Payload:", payload)
+
 # Send the POST request
 headers = {
     "X-Snowflake-Authorization-Token-Type": "KEYPAIR_JWT",
@@ -92,4 +95,5 @@ try:
     print("✅ Cortex Agents Response:\n\n", response.text)
 
 except requests.exceptions.RequestException as e:
-    print("❌ Curl Error:", str(e))
+    error_info = f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}"
+    print("❌ Curl Error:", error_info)
