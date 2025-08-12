@@ -1,0 +1,26 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Clear Python Cache",
+            "type": "shell",
+            "command": "${command:python.clearCache}",
+            "problemMatcher": [],
+            "options": {
+                "shell": {
+                    "executable": "${env:COMSPEC}",
+                    "args": ["/d", "/c"]
+                }
+            },
+            "windows": {
+                "command": "powershell -Command \"Get-ChildItem -Recurse -Include *.pyc,__pycache__ | Remove-Item -Recurse -Force\""
+            },
+            "linux": {
+                "command": "find . -type d -name \"__pycache__\" -exec rm -r {} + && find . -name \"*.pyc\" -delete"
+            },
+            "osx": {
+                "command": "find . -type d -name \"__pycache__\" -exec rm -r {} + && find . -name \"*.pyc\" -delete"
+            }
+        }
+    ]
+}

@@ -20,11 +20,11 @@ jwt = JWTGenerator(
     )
 jwt_token = jwt.get_token()
 # Debug JWT
-# print("JWT token length:", len(jwt_token))
-# print("JWT token (first 50 chars):", jwt_token[:50], "...")
+# print("JWT Token:", jwt_token)
+# print("JWT token (first 100 chars):", jwt_token[:100], "...")
 
 # Build the payload
-payload = {
+payloadForCortexSearch = {
     "model": os.getenv("MODEL"),
     "response_instruction": "You will always maintain a friendly tone and provide concise response.",
     "tools": [
@@ -49,7 +49,7 @@ payload = {
             "id_column": "relative_path"
         },
         "supply_chain": {
-            "semantic_model_file": os.getenv("SEMANTIC_MODEL")
+            "semantic_model_file": os.getenv("SEMANTIC_MODEL_SEARCH_SERVICE")
         }
     },
     "tool_choice": {
@@ -68,15 +68,53 @@ payload = {
     ]
 }
 
-# Optional: Payload to confirm structure
-print("Payload:", payload)
+payloadForCortexAgentOnSematicView = {
+    "model": os.getenv("MODEL"),
+    "response_instruction": "You will always maintain a friendly tone and provide concise response.",
+    "tools": [
+        {
+            "tool_spec": {
+                "type": "cortex_analyst_text_to_sql",
+                "name": "supply_chain"
+            }
+        }
+    ],
+    "tool_resources": {
+        "supply_chain": {
+            "semantic_model_file": os.getenv("SEMANTIC_MODEL_SMV")
+        }
+    },
+    "tool_choice": {
+        "type": "auto"
+    },
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Show me the top selling brands in by total sales quantity in the state ‘TX' in the ‘Books' category in the year 2003"
+                }
+            ]
+        }
+    ]
+}
+
+payload_map = {
+    "SEMANTIC_VIEW": payloadForCortexAgentOnSematicView,
+    "SEARCH_SERVICE": payloadForCortexSearch
+}
+
+payload = payload_map.get(os.getenv("SERVICE_TYPE"), payloadForCortexSearch)
+
+print(payload)
 
 # Send the POST request
 headers = {
     "X-Snowflake-Authorization-Token-Type": "KEYPAIR_JWT",
     "Authorization": f"Bearer {jwt_token}",
     "Content-Type": "application/json",
-    "Accept": "application/json, text/event-stream"
+    "Accept": "application/json"
 }
 
 # Optional: Decode header/payload to confirm structure
@@ -84,7 +122,6 @@ headers = {
 # decoded_payload = pyjwt.decode(jwt_token, options={"verify_signature": False})
 # print("JWT header:", decoded_header)
 # print("JWT payload:", decoded_payload)
-
 try:
     response = requests.post(
         os.getenv("AGENT_ENDPOINT"),

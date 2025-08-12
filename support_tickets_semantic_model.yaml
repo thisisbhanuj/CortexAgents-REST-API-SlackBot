@@ -3,7 +3,7 @@ tables:
   - name: SUPPORT_TICKETS
     description: A logical table capturing support tickets data.
     base_table:
-      database: DASH_DB
+      database: SEMANTIC_DATABASE
       schema: DASH_SCHEMA
       table: SUPPORT_TICKETS
 

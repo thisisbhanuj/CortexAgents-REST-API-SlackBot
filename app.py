@@ -1,16 +1,17 @@
 from typing import Any
 import os
+
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
+
 import snowflake.connector
-import pandas as pd
 from snowflake.core import Root
+import cortex_chat
+
 from dotenv import load_dotenv
 import matplotlib
-import matplotlib.pyplot as plt 
-from snowflake.snowpark import Session
-import numpy as np
-import cortex_chat
+import matplotlib.pyplot as plt
+import pandas as pd
 import time
 import requests
 
@@ -21,55 +22,32 @@ ACCOUNT = os.getenv("ACCOUNT")
 HOST = os.getenv("HOST")
 USER = os.getenv("USER")
 DATABASE = os.getenv("DATABASE")
-SCHEMA = os.getenv("SCHEMA")
+USER_PASSWORD = os.getenv("USER_PASSWORD")
+SCHEMA = os.getenv("SEMANTIC_VIEW_SCHEMA")
 ROLE = os.getenv("USER_ROLE")
 WAREHOUSE = os.getenv("WAREHOUSE")
-SLACK_MODE = os.getenv("SLACK_MODE")
+CONNECTION_MODE = os.getenv("CONNECTION_MODE")
 SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 AGENT_ENDPOINT = os.getenv("AGENT_ENDPOINT")
-SEMANTIC_MODEL = os.getenv("SEMANTIC_MODEL")
+SEMANTIC_MODEL_SEARCH_SERVICE = os.getenv("SEMANTIC_MODEL_SEARCH_SERVICE")
+SEMANTIC_MODEL_SEMANTIC_VIEW = os.getenv("SEMANTIC_MODEL_SMV")
 SEARCH_SERVICE = os.getenv("SEARCH_SERVICE")
 RSA_PRIVATE_KEY_PATH = os.getenv("RSA_PRIVATE_KEY_PATH")
+RSA_PRIVATE_KEY_PASSPHRASE = os.getenv("RSA_PRIVATE_KEY_PASSPHRASE")
 MODEL = os.getenv("MODEL")
 
-DEBUG = False
+DEBUG = True
 
 # Initializes app
 app = App(token=SLACK_BOT_TOKEN)
 messages = []
 
-@app.message("hello")
-def message_hello(message, say):
-    build = """
-Not a developer was stirring, all deep in the fight.
-The code was deployed in the pipelines with care,
-In hopes that the features would soon be there.
-
-And execs, so eager to see the results,
-Were prepping their speeches, avoiding the gulps.
-When, what to my wondering eyes should appear,
-But a slide-deck update, with a demo so clear!
-
-And we shouted out to developers,
-Let’s launch this build live and avoid any crash!
-The demos they created, the videos they made,
-Were polished and ready, the hype never delayed.
-            """
-
-    say(build)
-    say(
-        text = "Let's BUILD",
-        blocks = [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": ":snowflake: Let's BUILD!",
-                }
-            },
-        ]                
-    )
+service_type = os.getenv("SERVICE_TYPE")
+SEMANTIC_MODEL = {
+    "SEMANTIC_VIEW": SEMANTIC_MODEL_SEMANTIC_VIEW,
+    "SEARCH_SERVICE": SEMANTIC_MODEL_SEARCH_SERVICE,
+}.get(service_type, SEMANTIC_MODEL_SEARCH_SERVICE)
 
 @app.event("message")
 def handle_message_events(ack, body, say):
@@ -95,6 +73,10 @@ def handle_message_events(ack, body, say):
             ]
         )
         response = ask_agent(prompt)
+
+        # Optional Debug
+        # print(response)
+
         display_agent_response(response,say)
     except Exception as e:
         error_info = f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}"
@@ -160,7 +142,7 @@ def display_agent_response(content,say):
         if len(df.columns) > 1:
             chart_img_url = None
             try:
-                chart_img_url = plot_chart(df)
+                chart_img_url = None #plot_chart(df) Not required for now
             except Exception as e:
                 error_info = f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}"
                 print(f"Warning: Data likely not suitable for displaying as a chart. {error_info}")
@@ -267,13 +249,17 @@ def init():
     conn,jwt,cortex_app = None,None,None
 
     conn = snowflake.connector.connect(
-        user=USER,
-        authenticator="SNOWFLAKE_JWT",
-        private_key_file=RSA_PRIVATE_KEY_PATH,
+        host=HOST,
         account=ACCOUNT,
         warehouse=WAREHOUSE,
         role=ROLE,
-        host=HOST
+        user=USER,
+        authenticator="SNOWFLAKE_JWT",  
+        private_key_file=RSA_PRIVATE_KEY_PATH,
+        private_key_file_pwd=RSA_PRIVATE_KEY_PASSPHRASE,
+        login_timeout=60,
+        network_timeout=600,
+        socket_timeout=600
     )
     if not conn.rest.token:
         print(">>>>>>>>>> Snowflake connection unsuccessful!")
@@ -285,16 +271,17 @@ def init():
         MODEL, 
         ACCOUNT,
         USER,
-        RSA_PRIVATE_KEY_PATH)
+        RSA_PRIVATE_KEY_PATH
+    )
 
     print(">>>>>>>>>> Init complete")
     return conn,jwt,cortex_app
 
-# Start app
+# Start App Server
 if __name__ == "__main__":
     CONN,JWT,CORTEX_APP = init()
     Root = Root(CONN)
-    mode = SLACK_MODE.lower()  # set SLACK_MODE=socket or http
+    mode = CONNECTION_MODE.lower()
     if mode == "socket":
         SocketModeHandler(app, SLACK_APP_TOKEN).start()
     else:
