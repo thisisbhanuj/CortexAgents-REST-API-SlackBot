@@ -18,6 +18,7 @@ import requests
 matplotlib.use('Agg')
 load_dotenv()
 
+# ===== ENV VARS =====
 ACCOUNT = os.getenv("ACCOUNT")
 HOST = os.getenv("HOST")
 USER = os.getenv("USER")
@@ -39,7 +40,7 @@ MODEL = os.getenv("MODEL")
 
 DEBUG = True
 
-# Initializes app
+# Initializes App
 app = App(token=SLACK_BOT_TOKEN)
 messages = []
 
@@ -49,57 +50,46 @@ SEMANTIC_MODEL = {
     "SEARCH_SERVICE": SEMANTIC_MODEL_SEARCH_SERVICE,
 }.get(service_type, SEMANTIC_MODEL_SEARCH_SERVICE)
 
-@app.event("message")
-def handle_message_events(ack, body, say):
+# ===== Snowflake Connection Helpers =====
+def get_snowflake_conn():
+    """Create a fresh Snowflake connection using JWT."""
+    return snowflake.connector.connect(
+        host=HOST,
+        account=ACCOUNT,
+        warehouse=WAREHOUSE,
+        role=ROLE,
+        user=USER,
+        authenticator="SNOWFLAKE_JWT",  
+        private_key_file=RSA_PRIVATE_KEY_PATH,
+        private_key_file_pwd=RSA_PRIVATE_KEY_PASSPHRASE,
+        client_fetch_use_mp=True, # Enables multiprocessing for fetching query results in parallel.
+        client_prefetch_threads=8, # Number of threads to download the result set.
+        session_parameters={"CLIENT_TELEMETRY_ENABLED": True},
+        reuse_results=True,
+        disable_query_context_cache=False,
+        enable_retry_reason_in_query_response=True,
+        login_timeout=60,
+        network_timeout=600,
+        socket_timeout=600
+    )
+
+def execute_sql(sql: str):
+    """Execute SQL with automatic reconnect on token expiration."""
+    global CONN
     try:
-        ack()
-        prompt = body['event']['text']
-        say(
-            text = "Snowflake Cortex AI is generating a response",
-            blocks=[
-                {
-                    "type": "divider"
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "plain_text",
-                        "text": ":snowflake: Snowflake Cortex AI is generating a response. Please wait...",
-                    }
-                },
-                {
-                    "type": "divider"
-                },
-            ]
-        )
-        response = ask_agent(prompt)
+        df = pd.read_sql(sql, CONN)
+        return df
+    except snowflake.connector.errors.ProgrammingError as e:
+        if "08001" in str(e):  # Token expired
+            print("Snowflake token expired, reconnecting...")
+            CONN.close()
+            CONN = get_snowflake_conn()
+            df = pd.read_sql(sql, CONN)
+            return df
+        else:
+            raise
 
-        # Optional Debug
-        # print(response)
-
-        display_agent_response(response,say)
-    except Exception as e:
-        error_info = f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}"
-        print(error_info)
-        say(
-            text = "Request failed...",
-            blocks=[
-                {
-                    "type": "divider"
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "plain_text",
-                        "text": f"{error_info}",
-                    }
-                },
-                {
-                    "type": "divider"
-                },
-            ]
-        )        
-
+# ===== Cortex Chat Helpers =====
 def ask_agent(prompt):
     resp = CORTEX_APP.chat(prompt)
     return resp
@@ -107,7 +97,7 @@ def ask_agent(prompt):
 def display_agent_response(content,say):
     if content['sql']:
         sql = content['sql']
-        df = pd.read_sql(sql, CONN)
+        df = execute_sql(sql)
         say(
             text = "Answer:",
             blocks=[
@@ -200,6 +190,59 @@ def display_agent_response(content,say):
             ]                
         )
 
+# ===== Slack Event Handler =====
+@app.event("message")
+def handle_message_events(ack, body, say):
+    try:
+        ack()
+        prompt = body['event']['text']
+        say(
+            text = "Snowflake Cortex AI is generating a response",
+            blocks=[
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "plain_text",
+                        "text": ":snowflake: Snowflake Cortex AI is generating a response. Please wait...",
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+            ]
+        )
+        response = ask_agent(prompt)
+
+        # Optional Debug
+        # print(response)
+
+        display_agent_response(response,say)
+    except Exception as e:
+        error_info = f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}"
+        print(error_info)
+        say(
+            text = "Request failed...",
+            blocks=[
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "plain_text",
+                        "text": f"{error_info}",
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+            ]
+        )        
+
+# ===== Optional Charting =====
 def plot_chart(df):
     plt.figure(figsize=(10, 6), facecolor='#333333')
 
@@ -245,6 +288,7 @@ def plot_chart(df):
     
     return img_url
 
+# ===== Init Function =====
 def init():
     conn,jwt,cortex_app = None,None,None
 

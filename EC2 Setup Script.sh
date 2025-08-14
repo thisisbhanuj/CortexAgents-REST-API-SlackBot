@@ -48,7 +48,16 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# Reload systemd and enable service
-systemctl daemon-reload
-systemctl enable slackbot.service
-systemctl start slackbot.service
+# Commands #######################################
+# Stop the service immediately
+sudo systemctl stop slackbot.service
+# Disable it from starting at boot
+sudo systemctl disable slackbot.service
+# Reload systemd manager configuration
+sudo systemctl daemon-reload
+# (Optional) Restart the service to apply changes
+sudo systemctl restart slackbot.service
+# Check the status of the service
+systemctl status slackbot.service
+# Verify if the service is enabled to start at boot
+systemctl is-enabled slackbot.service
